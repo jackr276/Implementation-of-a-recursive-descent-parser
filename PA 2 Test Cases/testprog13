@@ -1,0 +1,17 @@
+program circle;
+var
+	{Missing operand after operator}
+	r, a, p, b : real; 
+	i, j : integer := 0;	
+begin
+	r := 8;
+	p := 0;
+	a := 0;
+	j := -1;
+	if r > 5 then
+	  a := (3.14) *  * r;
+	if (a < 100) 
+	    p := 2 * 3.14 * b; 
+	{Display the results}
+	writeln ( 'The output results are ' , r, p, b);
+end.

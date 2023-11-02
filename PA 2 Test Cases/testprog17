@@ -1,0 +1,17 @@
+program circle;
+var
+	{Syntax error in if statement}
+	r, a, p, b : real; 
+	i, j : integer := 0;	
+begin
+	r := 8;
+	p := 0;
+	a := 0;
+	b := -1;
+	if r > 5 
+	  a := (3.14) * r * r
+	else
+	    p := 2 * 3.14 * b;
+	{Display the results}
+	writeln ( 'The output results are ' , r, p, b)
+end.

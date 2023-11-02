@@ -1,0 +1,28 @@
+program circle;
+var
+	{Clean program}
+	r, a, p, b : real; 
+	flag : boolean := true;
+	i, j : integer := 0;
+	str : string := 'End of Program';	
+begin
+	r := 8;
+	p := 0;
+	a := 0;
+	
+	if r > 5 then
+	begin
+	  a := (3.14) * r * r
+	end;
+	if (a > 0 and a < 100) then
+	    p := 2 * 3.14 * b 
+	else
+	begin
+	    p := 0;
+	    flag := false
+	end;
+	{Display the results}
+	write ( 'The result of a= ' , a);
+	writeln('The result of p= ' , p);
+	writeln(str)
+end.
