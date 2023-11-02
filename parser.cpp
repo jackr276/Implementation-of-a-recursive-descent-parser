@@ -37,15 +37,23 @@ namespace Parser {
 
 static int error_count = 0;
 
-int ErrCount()
-{
-    return error_count;
-}
 
 void ParseError(int line, string msg)
 {
 	++error_count;
 	cout << line << ": " << msg << endl;
+}
+
+bool Prog(istream& in, int& line){
+	return false;
+}
+
+bool DeclPart(istream& in, int& line){
+	return false;
+}
+
+bool DeclStmt(istream& in, int& line){
+	return false;
 }
 
 /** 
@@ -81,6 +89,31 @@ bool Stmt(istream& in, int& line) {
 }
 
 /**
+* stmt will call StructuredStmt if appropriate according to our grammar rules
+* StructuredStmt ::= IfStmt | CompoundStmt
+*/
+bool StructuredStmt(istream& in, int& line){
+	LexItem strd = Parser::GetNextToken(in, line);
+
+	switch (strd.GetToken()){
+		case IF:
+			return IfStmt(in, line);
+		
+		//Compound statements begin with in
+		case BEGIN:
+			return CompoundStmt(in, line);
+
+		default:
+			//we won't ever get here, added to remove compile warnings
+			return false;
+	}
+}
+
+bool CompoundStmt(istream& in, int& line){
+	return false;
+}
+
+/**
 * stmt will call SimpleStmt if appropriate according to our grammar rules
 * SimpleStmt ::= AssignStmt | WriteLnStmt | WriteStmt
 */
@@ -104,33 +137,37 @@ bool SimpleStmt(istream& in, int& line){
 	}
 }
 
-/**
-* stmt will call StructuredStmt if appropriate according to our grammar rules
-* StructuredStmt ::= IfStmt | CompoundStmt
-*/
-
-bool StructuredStmt(istream& in, int& line){
-	LexItem strd = Parser::GetNextToken(in, line);
-
-	switch (strd.GetToken()){
-		case IF:
-			return IfStmt(in, line);
+//WriteLnStmt ::= writeln (ExprList) 
+bool WriteLnStmt(istream& in, int& line) {
+	LexItem t;
+	//cout << "in WriteStmt" << endl;
+	
+	t = Parser::GetNextToken(in, line);
+	if( t != LPAREN ) {
 		
-		//Compound statements begin with in
-		case BEGIN:
-			return CompoundStmt(in, line);
-
-		default:
-			//we won't ever get here, added to remove compile warnings
-			return false;
+		ParseError(line, "Missing Left Parenthesis");
+		return false;
 	}
-}
+	
+	bool ex = ExprList(in, line);
+	
+	if( !ex ) {
+		ParseError(line, "Missing expression list for WriteLn statement");
+		return false;
+	}
+	
+	t = Parser::GetNextToken(in, line);
+	if(t != RPAREN ) {
+		
+		ParseError(line, "Missing Right Parenthesis");
+		return false;
+	}
+	//Evaluate: print out the list of expressions values
+
+	return ex;
+}//End of WriteLnStmt
 
 
-
-bool Prog(istream& in, int& line){
-	return false;
-}
 
 /**
  * Write statements must have open and closing parenthesis with an ExprList inside
@@ -167,37 +204,17 @@ bool WriteStmt(istream& in, int& line){
 
 }
 
+bool IfStmt(istream& in, int& line){
+	return false;
+}
 
-//WriteLnStmt ::= writeln (ExprList) 
-bool WriteLnStmt(istream& in, int& line) {
-	LexItem t;
-	//cout << "in WriteStmt" << endl;
-	
-	t = Parser::GetNextToken(in, line);
-	if( t != LPAREN ) {
-		
-		ParseError(line, "Missing Left Parenthesis");
-		return false;
-	}
-	
-	bool ex = ExprList(in, line);
-	
-	if( !ex ) {
-		ParseError(line, "Missing expression list for WriteLn statement");
-		return false;
-	}
-	
-	t = Parser::GetNextToken(in, line);
-	if(t != RPAREN ) {
-		
-		ParseError(line, "Missing Right Parenthesis");
-		return false;
-	}
-	//Evaluate: print out the list of expressions values
+bool AssignStmt(istream& in, int& line){
+	return false;
+}
 
-	return ex;
-}//End of WriteLnStmt
-
+bool Var(istream& in, int& line){
+	return false;
+}
 
 /*
 * Any expression in our grammar could optionally be a list of expressions
@@ -241,9 +258,35 @@ bool ExprList(istream& in, int& line) {
 	return status;
 }
 
-
 bool Expr(istream& in, int& line){
 	return false;
 }
 
+bool LogANDExpr(istream& in, int& line){
+	return false;
+}
 
+bool RelExpr(istream& in, int& line){
+	return false;
+}
+
+bool SimpleExpr(istream& in, int& line){
+	return false;
+}
+
+bool Term(istream& in, int& line){
+	return false;
+}
+
+bool SFactor(istream& in, int& line){
+	return false;
+}
+
+bool Factor(istream& in, int& line, int sign){
+	return false;
+}
+
+int ErrCount()
+{
+    return error_count;
+}
