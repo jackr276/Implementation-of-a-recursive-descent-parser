@@ -76,7 +76,8 @@ bool Stmt(istream& in, int& line) {
 	}
 
 	// Check to see if we have a simple statement
-	if (l == VAR || l == WRITE || l == WRITELN){
+	// Assignments start with IDENT
+	if (l == IDENT || l == WRITE || l == WRITELN){
 		//Put token back to be reprocessed
 		Parser::PushBackToken(l);
 		return SimpleStmt(in, line);
@@ -109,7 +110,33 @@ bool StructuredStmt(istream& in, int& line){
 	}
 }
 
+
+/**
+ * Compound statements start with BEGIN and stop with END
+ * CompoundStmt ::= BEGIN Stmt {; Stmt } END
+*/
 bool CompoundStmt(istream& in, int& line){
+	LexItem l;
+	//If we got here we already have consumed a BEGIN
+	bool stmt = Stmt(in, line);
+	//Analyze/consume the statement
+
+	if(stmt){
+		//We can either have an END or a SEMICOL
+		l = Parser::GetNextToken(in, line);
+
+		//there can be as many semicols as the user likes, keep calling stmt for them
+		while (l.GetToken() == SEMICOL){
+			stmt= Stmt(in, line);
+			// FIXME 
+			if(!stmt){
+				// TODO
+			}
+		}
+
+
+ 	} 
+
 	return false;
 }
 
