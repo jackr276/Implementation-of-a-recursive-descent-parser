@@ -22,6 +22,7 @@ static map<Token, string> tokenMap = {
     //keywords - these will also need their own map for id_or_kw
     {IF, "IF"}, 
     {ELSE, "ELSE"},
+    {THEN, "THEN"},
     {WRITELN, "WRITELN"},
     {WRITE, "WRITE"},
     {INTEGER, "INTEGER"},
@@ -29,7 +30,7 @@ static map<Token, string> tokenMap = {
 	{BOOLEAN, "BOOLEAN"},
     {STRING, "STRING"},
     {BEGIN, "BEGIN"},
-    //{END, "END"},
+    {END, "END"},
     {VAR, "VAR"},
     {THEN, "THEN"},
     {PROGRAM, "PROGRAM"},
@@ -75,6 +76,7 @@ static map<Token, string> tokenMap = {
 static map<string, Token> keywordMap = {
     {"IF", IF}, 
     {"ELSE", ELSE},
+    {"THEN", THEN},
     {"WRITELN", WRITELN},
     {"WRITE", WRITE},
     {"INTEGER", INTEGER},
@@ -82,7 +84,7 @@ static map<string, Token> keywordMap = {
 	{"BOOLEAN", BOOLEAN},
     {"STRING", STRING},
     {"BEGIN", BEGIN},
-    //{"END", END},
+    {"END", END},
     {"VAR", VAR},
     {"THEN", THEN},
     {"PROGRAM", PROGRAM},
