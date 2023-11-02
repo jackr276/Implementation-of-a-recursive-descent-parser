@@ -121,8 +121,8 @@ bool SimpleStmt(istream& in, int& line){
 	LexItem smpl = Parser::GetNextToken(in, line);
 
 	switch (smpl.GetToken()){
-		//Assignments start with VARs
-		case VAR:
+		//Assignments start with identifiers
+		case IDENT:
 			return AssignStmt(in, line);
 
 		case WRITELN:
@@ -208,8 +208,53 @@ bool IfStmt(istream& in, int& line){
 	return false;
 }
 
+/**
+ * Assignment Statements take in a var, ASSOP and expression
+ * AssignStmt ::= Var := Expr
+*/
 bool AssignStmt(istream& in, int& line){
-	return false;
+	bool status = false;
+	bool varStatus = false;
+	LexItem l;
+
+	//Check to see the status of the identifier that we have(was it already declared?)
+	varStatus = Var(in, line);
+
+	if (varStatus) {
+		//Get the next token(should be assop)
+		l = Parser::GetNextToken(in, line);
+
+		if (l == ASSOP){
+			//Analyze the expression after the assignment operator
+			status = Expr(in, line);
+			
+			//If there's no expression, thats an error
+			if (!status){
+				ParseError(line, "Missing Expression in Assignment Statement");
+				return false;
+			}
+
+		//Unrecognized token
+		} else if (l == ERR){
+			ParseError(line, "Unrecognized Input Pattern");
+			//print out the unrecognized input
+			cout << "(" << l.GetLexeme() << ")" << endl;
+			return false;
+
+		//If we get here there was no assignment operator
+		} else {
+			ParseError(line, "Missing Assignment Operator in AssignStmt");
+			return false;
+		}
+
+	//If the variable wasn't correct, we essentially have no variable
+	} else {
+		ParseError(line, "Missing Left-Hand Side Variable in Assignment statement");
+		return false;
+	}
+
+
+	return status;
 }
 
 bool Var(istream& in, int& line){
