@@ -1,0 +1,4 @@
+PROGRAM hello;
+     var 
+     r, b, p, a: integer;
+     x, y, z, a: real; 

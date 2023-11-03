@@ -7,10 +7,11 @@
 
 #include "parser.h"
 #include <iostream>
+#include <set>
 
 // defVar keeps track of all variables that have been defined in the program thus far
 map<string, bool> defVar;
-
+// SymTable keeps track of the type for all of our variables
 map<string, Token> SymTable;
 
 namespace Parser {
@@ -35,26 +36,200 @@ namespace Parser {
 
 }
 
+//Initialize error count to be 0
 static int error_count = 0;
 
 
+//A simple error wrapper that incrememnts error count, and prints out the error
 void ParseError(int line, string msg)
 {
 	++error_count;
 	cout << line << ": " << msg << endl;
 }
 
+
+/**
+ * To start, the program must use the keyword Program and give an identifier name.
+ * It must then go into the Declaritive part followed by a compound statement
+ * Prog ::= PROGRAM IDENT ; DeclPart CompoundStmt
+*/
 bool Prog(istream& in, int& line){
-	return false;
+	bool status = false;
+
+	//This should be the keyword "program"
+	LexItem l = Parser::GetNextToken(in, line);
+
+	//We're missing the required program keyword, throw an error and exit
+	if (l != PROGRAM){
+		ParseError(line, "Missing PROGRAM keyword.");
+		return false;
+	} else {
+		//We have the program keyword, move on to more processing
+		l = Parser::GetNextToken(in, line);
+
+		//This token should be an IDENT if all is correct, if not we have an error
+		if (l != IDENT){
+			ParseError(line, "Missing program name.");
+			return false;
+		}
+
+		//If we're at this point we have PROGRAM IDENT, need a semicol
+		l = Parser::GetNextToken(in, line);
+
+		//If there's no semicolon, syntax error
+		if (l != SEMICOL) {
+			ParseError(line, "Syntax Error.");
+			return false;
+		}
+
+		//By this point, we have checked up to PROGRAM IDENT ;
+		//Check the DeclPart
+		status = DeclPart(in, line);
+		
+		//If the declaration was bad, no point in continuing
+		if (!status){
+			ParseError(line, "Incorrect Declaration Section.");
+			return false;
+		}
+
+		//Up to here we have gotten PROGRAM IDENT ; DeclPart
+		//Check for the compound statement
+		status = CompoundStmt(in, line);
+
+		//If the compound statement was bad, return false
+		if (!status){
+			ParseError(line, "Incorrect Program Body.");
+			return false;
+		}
+
+	}
+
+	//There could also be some unrecognizable token here
+	if (l == ERR) {
+		ParseError(line, "Unrecognized input pattern.");
+		cout << "(" << l.GetLexeme() << ")" << endl;
+		return false; 
+	}
+
+	//If we reach here, status will be true and parsing will have been successful
+	return status;
 }
 
+
+/**
+ * The declarative part must start with the var keyword, followed by one or more colon separated declStmt's
+ * DeclPart ::= VAR DeclStmt; { DeclStmt ; }
+*/
 bool DeclPart(istream& in, int& line){
-	return false;
+	bool status = false;
+
+	LexItem l = Parser::GetNextToken(in, line);
+	//This first token should be VAR, if not throw an error
+	if (l != VAR){
+		ParseError(line, "Missing VAR Keyword.");
+		return false;
+	}
+
+	//Once we're here, we should be seeing DeclStmt's followed by SEMICOLs
+	//There can be as many as we like, so use iteration
+
+	//We will use this lexitem to look ahead
+	LexItem lookAhead = Parser::GetNextToken(in, line);
+	while(lookAhead == IDENT){
+		//Once we know its an ident, put it back for processing by DeclStmt
+		Parser::PushBackToken(lookAhead);
+		
+		//DeclStmt processing
+		status = DeclStmt(in, line);
+		
+		//If its a bad DeclStmt, throw error
+		if (!status) {
+			ParseError(line, "Syntactic error in Declaration Block.");
+			return false;
+		}
+
+		//We had a good DeclStmt, it has to be followed by a semicol
+		l = Parser::GetNextToken(in, line);
+		//If no semicolon, throw syntax error
+		if (l != SEMICOL){
+			ParseError(line, "Syntactic error in Declaration Block.");
+			return false;
+		}
+
+		//Update lookahead, this will tell us if we have more declstmts
+		lookAhead = Parser::GetNextToken(in, line);
+	}
+
+	//If we get here, lookAhead must not have been an IDENT. We need to put it back for processing by the CompoundStmt block
+	Parser::PushBackToken(lookAhead);
+
+	//If we get here, our DeclPart will have been successful
+	return status;
 }
 
+
+/**
+ * A delcaration statement can have one or more comma separated identifiers, followed by a valid type and an optional assignment
+ * DeclStmt ::= IDENT {, IDENT } : Type [:= Expr]
+*/
 bool DeclStmt(istream& in, int& line){
-	return false;
+	//All of the variables in a declstmt are going to have the same type, store in a set for type assignment
+	set<string> tempSet;
+
+	//Dummy lexItem to make the first iteration of the while loop run
+	LexItem lookAhead = LexItem(COMMA, ",", 0);
+	LexItem l;
+
+	//We should see an IDENT first
+	while (lookAhead == COMMA) {
+		l = Parser::GetNextToken(in, line);
+		//l must be an IDENT
+		if (l != IDENT) {
+			ParseError(line, "Non-indentifier declaration.");
+			return false;
+		}
+
+		//If this variable is already in defVars, we have a redeclaration, throw error
+		if (defVar.find(l.GetLexeme()) -> second){
+			ParseError(line, "Variable Redefinition");
+			ParseError(line, "Incorrect identifiers list in Declaration Statement.");
+			return false;
+		}
+
+		//If we get here, it wasn't in defVars, so we should add it
+		defVar.insert(pair<string, bool> (l.GetLexeme(), true));
+		tempSet.insert(l.GetLexeme());
+
+		lookAhead = Parser::GetNextToken(in, line);
+	}
+
+	//once we exit the loop, we know lookAhead was NOT a comma, so it has to be a COLON
+	if (lookAhead != COLON){
+		ParseError(line, "Syntactic Error in Declaration Block.");
+		return false;
+	}
+
+	//following this, we need to have a type for our variables
+	//The next token should be a valid type
+	l = Parser::GetNextToken(in, line);
+	//allowed to be integer, boolean, real, string
+	if (l == STRING || l == INTEGER || l == REAL || l == BOOLEAN){
+		for(auto i : tempSet){
+			SymTable.insert(pair<string, Token> (i, l.GetToken()));
+		}
+	} else {
+		//Unrecognized type
+		ParseError(line, "Unrecognized Type.");
+		return false;
+	}
+
+	// FIXME not done yet, need to do the optional ASSOP
+
+	return true;
+
 }
+
+
 
 /** 
  * This is the top of our parse tree, everything that we take in is either a statement or expression of some kind
@@ -155,7 +330,7 @@ bool SimpleStmt(istream& in, int& line){
 		case WRITELN:
 			return WriteLnStmt(in, line);
 
-		case WRITE:
+		case WRITE: 
 			return WriteStmt(in, line);
 		
 		//We won't ever get here, added for compile safety on Vocareum
