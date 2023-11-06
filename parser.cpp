@@ -239,7 +239,24 @@ bool DeclStmt(istream& in, int& line){
 	//Once we get here, we have found 
 	//DeclStmt ::= IDENT {, IDENT } : Type
 	//After type, there is an optional ASSOP, so get the next token to check
-	//l = Parser::GetNextToken(in,line);
+	l = Parser::GetNextToken(in,line);
+
+	//If we find the optional ASSOP, process it
+	if (l == ASSOP){
+		//TODO not yet done *****************************************************
+		return Expr(in, line);
+	//If its unrecognized throw and error
+	} else if (l == ERR){
+		ParseError(line, "Unrecognized input pattern.");
+		cout << "(" << l.GetLexeme() << ")";
+		return false;
+	//If we get here, l was not the optional ASSOP, push token back and return
+	} else {
+		Parser::PushBackToken(l);
+	}
+
+
+
 	//TODO
 
 	return true;
@@ -374,7 +391,7 @@ bool SimpleStmt(istream& in, int& line){
 
 //FIXME needs documentation
 //WriteLnStmt ::= writeln (ExprList) 
-bool WriteLnStmt(istream& in, int& line) {
+bool WriteLnStmt(istream& in, int& line){
 	LexItem t;
 	//cout << "in WriteStmt" << endl;
 	
@@ -537,7 +554,7 @@ bool Var(istream& in, int& line){
 * Example: writeln(str, ' to cs 280 course')
 * ExprList:= Expr {,Expr}
 */
-bool ExprList(istream& in, int& line) {
+bool ExprList(istream& in, int& line){
 	bool status = false;
 	//Get the first Expr, as their is always a starting expression
 	status = Expr(in, line);
@@ -574,12 +591,72 @@ bool ExprList(istream& in, int& line) {
 	return status;
 }
 
+
+//Expr ::= LogOrExpr ::= LogAndExpr { OR LogAndExpr }
+//So essentially: Expr ::= LogANDExpr { OR LogAndExpr}
 bool Expr(istream& in, int& line){
-	return false;
+	bool status = false;
+	LexItem l;
+	
+	//Once we get here, first thing to do is call LogAndExpr
+	status = LogANDExpr(in, line);
+
+	//If expression is bad, return error
+	if (!status){
+		ParseError(line, "Incorrect Expression");
+		return false;
+	}
+
+	//Once we're here, we can either have nothing or one or more OR's followed by more LogAndExpr
+	//Get the next token
+	l = Parser::GetNextToken(in, line);
+
+	//While we have an OR, keep processing LogAndExpr's
+	while (l == OR){
+		status = LogANDExpr(in, line);
+
+		//If expression is bad, return error
+		if (!status){
+			ParseError(line, "Incorrect Expression");
+			return false;
+		}
+
+		//refresh the value of l
+		l = Parser::GetNextToken(in, line);
+	}
+
+	// if we have an ERR token, throw error
+	if (l == ERR) {
+		ParseError(line, "Unrecognized input pattern.");
+		cout << "(" << l.GetLexeme() << ")";
+		return false;
+	}
+
+	//Once we get here, l was not an OR, so put it back and we're done
+	Parser::PushBackToken(l);
+
+	return status;
 }
 
+
+// LogAndExpr ::= RelExpr {AND RelExpr }
 bool LogANDExpr(istream& in, int& line){
-	return false;
+	bool status = false;
+	LexItem l;
+
+	//Once we get here, the first thing we should do is check for a relational expression
+	status = RelExpr(in, line);
+
+	//If we have a bad relational expression, return error
+	if (!status){
+		ParseError(line, "Syntactic error in relational expression.");
+		return false;
+	}
+
+	// TODO finish this, same as LogORExpression essentially
+	
+
+	return status;
 }
 
 bool RelExpr(istream& in, int& line){
@@ -590,21 +667,127 @@ bool SimpleExpr(istream& in, int& line){
 	return false;
 }
 
+//Term ::= SFactor { ( * | / | DIV | MOD ) SFactor }
 bool Term(istream& in, int& line){
 	return false;
 }
 
+
+// SFactor can have an optional sign in front of it
+// SFactor ::= [( - | + | NOT )] Factor
 bool SFactor(istream& in, int& line){
+	
+	//Get the token for processing
+	LexItem l = Parser::GetNextToken(in, line); 
+
+	//Plus is a "1" in factor
+	if (l == PLUS){
+		return Factor(in, line, 1);
+	}
+
+	//Negative is a "2" in factor
+	if (l == MINUS) {
+		return Factor(in, line, 2);
+	}
+
+	//NOT is a "3" in factor
+	if (l == NOT) {
+		return Factor(in, line, 3);
+	}
+
+	//If l is not +, - or NOT, push token back and let factor handle it
+	Parser::PushBackToken(l);
+	//0 means we found no plus, minus or NOT
+	Factor(in, line, 0);
+
 	return false;
 }
 
+
+
+//Factor must be a predeclared identifier or a constant, or an optional expr in parenthesis
+//Sign is 0 if no sign, 1 if positive(+), 2 if negative(-), 3 if NOT
+//Factor ::= IDENT | ICONST | RCONST | SCONST | BCONST | (Expr)
 bool Factor(istream& in, int& line, int sign){
+	//get and check our first token
+	LexItem l = Parser::GetNextToken(in, line);
+
+	//If the token is an error, no bother in further processing
+	if (l == ERR){
+		ParseError(line, "Unrecognized input pattern.");
+		cout << "(" << l.GetLexeme() << ")";
+		return false;
+	}
+
+	//Check IDENT
+	if (l == IDENT){
+		//Idents should not have a sign at all
+		if (sign != 0){
+			ParseError(line, "Illegal use of a sign before an identifier.");
+			return false;
+		}
+		
+		//If we get here, ident was fine, push back and let Var handle it
+		Parser::PushBackToken(l);
+		return Var(in, line);
+	}
+
+	//Check SCONST
+	if (l == SCONST){
+		//SCONSTS should also have no sign
+		if (sign != 0){
+			ParseError(line, "Illegal use of a sign before a string constant.");
+			return false;
+		}
+		//if we pass this condition then its true
+		return true;
+	}
+
+	//Check RCONST and ICONST
+	if (l == ICONST || l == RCONST){
+		//Reals and ints can have +/- sign, or no sign, just not "NOT"
+		if(sign == 3){
+			ParseError(line, "Illegal use of NOT operator before integer or real constant.");
+			return false;
+		}
+
+		return true;
+	}
+
+	//Check BCONST
+	if (l == BCONST){
+		//Booleans can have the NOT or no operator, but nothing else
+		if (sign == 1 || sign == 2){
+			ParseError(line, "Illegal use of +/- sign before boolean constant.");
+			return false;
+		}
+
+		return true;
+	}
+
+	//If we see an lparen, we have an expr
+	if (l == LPAREN){
+		//Evaluate the internal expression
+		bool status = Expr(in, line);
+
+		if(!status){
+			ParseError(line, "Invalid Expression.");
+			return false;
+		}
+
+		//Ensure that there is a closing rparen
+		l = Parser::GetNextToken(in, line);
+		if (l != RPAREN){
+			ParseError(line, "Missing Right Parenthesis");
+			return false;
+		}
+	}
+
 	return false;
 }
 
 
 // A simple wrapper that allows access to the number of syntax errors
-int ErrCount()
-{
+int ErrCount(){
     return error_count;
 }
