@@ -36,6 +36,7 @@ namespace Parser {
 
 }
 
+
 //Initialize error count to be 0
 static int error_count = 0;
 
@@ -69,7 +70,7 @@ bool Prog(istream& in, int& line){
 
 		//This token should be an IDENT if all is correct, if not we have an error
 		if (l != IDENT){
-			ParseError(line, "Missing program name.");
+			ParseError(line, "Missing Program name.");
 			return false;
 		}
 
@@ -126,7 +127,7 @@ bool DeclPart(istream& in, int& line){
 	LexItem l = Parser::GetNextToken(in, line);
 	//This first token should be VAR, if not throw an error
 	if (l != VAR){
-		ParseError(line, "Missing VAR Keyword.");
+		ParseError(line, "Non-recognizable Declaration Part.");
 		return false;
 	}
 
@@ -150,8 +151,10 @@ bool DeclPart(istream& in, int& line){
 
 		//We had a good DeclStmt, it has to be followed by a semicol
 		l = Parser::GetNextToken(in, line);
+
 		//If no semicolon, throw syntax error
 		if (l != SEMICOL){
+			//error right here
 			ParseError(line, "Syntactic error in Declaration Block.");
 			return false;
 		}
@@ -202,12 +205,22 @@ bool DeclStmt(istream& in, int& line){
 
 		lookAhead = Parser::GetNextToken(in, line);
 	}
-
-	//once we exit the loop, we know lookAhead was NOT a comma, so it has to be a COLON
-	if (lookAhead != COLON){
-		ParseError(line, "Syntactic Error in Declaration Block.");
+	
+	//If we're out of the loop, we know it wasn't a comma
+	//If there's an ident after this, then we know the user forgot to put a comma in between
+	if (lookAhead == IDENT){
+		ParseError(line, "Missing comma in declaration statement");
+		//Having this would also make it a bad identifier list, so return this error as well
+		ParseError(line, "Incorrect identifiers list in Declaration Statement.");
 		return false;
 	}
+
+	//If its not a colon at this point, there's some syntax error here
+	//Let caller handle
+	if (lookAhead != COLON){
+		return false;
+	}
+
 
 	//following this, we need to have a type for our variables
 	//The next token should be a valid type
@@ -219,14 +232,17 @@ bool DeclStmt(istream& in, int& line){
 		}
 	} else {
 		//Unrecognized type
-		ParseError(line, "Unrecognized Type.");
+		ParseError(line, "Incorrect Declaration Type.");
 		return false;
 	}
 
-	// FIXME not done yet, need to do the optional ASSOP
+	//Once we get here, we have found 
+	//DeclStmt ::= IDENT {, IDENT } : Type
+	//After type, there is an optional ASSOP, so get the next token to check
+	//l = Parser::GetNextToken(in,line);
+	//TODO
 
 	return true;
-
 }
 
 
@@ -243,6 +259,13 @@ bool Stmt(istream& in, int& line) {
 	// Get the next lexItem from the instream and analyze it
 	LexItem l = Parser::GetNextToken(in, line);
 
+	// If l is uncrecognizable, no use in checking anything
+	if (l == ERR){
+		ParseError(line, "Unrecognized input pattern.");
+		cout << "(" << l.GetLexeme() << ")";
+		return false;
+	}
+
 	// Check if we have a structured statement
 	if (l == BEGIN || l == IF){
 		//Put token back to be reprocessed
@@ -258,11 +281,13 @@ bool Stmt(istream& in, int& line) {
 		return SimpleStmt(in, line);
 	}
 
+
 	//We didn't find anything so push the token back
 	Parser::PushBackToken(l);
 	//Stmt was not successful if we got here
 	return false;
 }
+
 
 /**
 * stmt will call StructuredStmt if appropriate according to our grammar rules
@@ -296,6 +321,7 @@ bool CompoundStmt(istream& in, int& line){
 	bool stmt = Stmt(in, line);
 	//Analyze/consume the statement
 
+	//If the first statement was valid, continue on
 	if(stmt){
 		//We can either have an END or a SEMICOL
 		l = Parser::GetNextToken(in, line);
@@ -303,10 +329,15 @@ bool CompoundStmt(istream& in, int& line){
 		//there can be as many semicols as the user likes, keep calling stmt for them
 		while (l.GetToken() == SEMICOL){
 			stmt= Stmt(in, line);
-			// FIXME 
+			//For each stmt we get, check for validity
 			if(!stmt){
-				// TODO
+				//If this fails, then we have a bad statement
+				ParseError(line, "Syntactic Error in the statement");
+				return false;
 			}
+
+			//Refresh l
+			l = Parser::GetNextToken(in, line);
 		}
 
 
@@ -314,6 +345,7 @@ bool CompoundStmt(istream& in, int& line){
 
 	return false;
 }
+
 
 /**
 * stmt will call SimpleStmt if appropriate according to our grammar rules
@@ -339,6 +371,8 @@ bool SimpleStmt(istream& in, int& line){
 	}
 }
 
+
+//FIXME needs documentation
 //WriteLnStmt ::= writeln (ExprList) 
 bool WriteLnStmt(istream& in, int& line) {
 	LexItem t;
@@ -406,9 +440,26 @@ bool WriteStmt(istream& in, int& line){
 
 }
 
+
+// Processing all IF statements, 
+// IfStmt ::= IF Expr THEN Stmt [ ELSE Stmt ]
 bool IfStmt(istream& in, int& line){
-	return false;
+	LexItem l;
+
+	//Once this function is called, the IF token has been consumed already
+	//We should see a valid expression at this point
+	bool status = Expr(in, line);
+
+	//if expression is not valid, return false
+	if(!status){
+
+	}
+	return status;
+
+
+
 }
+
 
 /**
  * Assignment Statements take in a var, ASSOP and expression
@@ -454,14 +505,32 @@ bool AssignStmt(istream& in, int& line){
 		ParseError(line, "Missing Left-Hand Side Variable in Assignment statement");
 		return false;
 	}
-
-
 	return status;
 }
 
+
+// Check to see if the variable is valid and has previously been declared
+// Var ::= IDENT
 bool Var(istream& in, int& line){
-	return false;
+	//get the token, check to see if var was declared
+	LexItem l = Parser::GetNextToken(in, line);
+
+	//If we can find the variable, return true
+	if(defVar.find(l.GetLexeme())-> second){
+		return true;
+	//If lexeme is unrecognized, then give this error
+	} else if (l == ERR) {
+		ParseError(line, "Unrecognized Input Pattern");
+		cout << "(" << l.GetToken() << ")" << endl;
+		return false;
+	//If we get here, we have a valid variable name that was just not declared. Show appropriate error
+	} else {
+		ParseError(line, "Undeclared Variable");
+		return false;
+	}
 }
+
+
 
 /*
 * Any expression in our grammar could optionally be a list of expressions
@@ -533,6 +602,8 @@ bool Factor(istream& in, int& line, int sign){
 	return false;
 }
 
+
+// A simple wrapper that allows access to the number of syntax errors
 int ErrCount()
 {
     return error_count;
