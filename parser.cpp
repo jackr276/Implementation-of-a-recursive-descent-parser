@@ -243,25 +243,25 @@ bool DeclStmt(istream& in, int& line){
 
 	//If we find the optional ASSOP, process it
 	if (l == ASSOP){
-		//TODO not yet done *****************************************************
-		return Expr(in, line);
+		bool status = Expr(in, line);
+		if (!Expr) {
+			ParseError(line, "Invalid expression following assignment operator.");
+			return false;
+		}
+
 	//If its unrecognized throw and error
 	} else if (l == ERR){
 		ParseError(line, "Unrecognized input pattern.");
 		cout << "(" << l.GetLexeme() << ")";
 		return false;
-	//If we get here, l was not the optional ASSOP, push token back and return
+
+	//If we get here, l was not the optional ASSOP or ERR, push token back and return
 	} else {
 		Parser::PushBackToken(l);
 	}
 
-
-
-	//TODO
-
 	return true;
 }
-
 
 
 /** 
@@ -335,32 +335,48 @@ bool StructuredStmt(istream& in, int& line){
 bool CompoundStmt(istream& in, int& line){
 	LexItem l;
 	//If we got here we already have consumed a BEGIN
-	bool stmt = Stmt(in, line);
-	//Analyze/consume the statement
+	bool status = Stmt(in, line);
 
-	//If the first statement was valid, continue on
-	if(stmt){
-		//We can either have an END or a SEMICOL
-		l = Parser::GetNextToken(in, line);
+	//If stmt is bad, no point in continuing
+	if (!status){
+		ParseError(line, "Bad statement in compound statement.");
+		return false;
+	}
 
-		//there can be as many semicols as the user likes, keep calling stmt for them
-		while (l.GetToken() == SEMICOL){
-			stmt= Stmt(in, line);
-			//For each stmt we get, check for validity
-			if(!stmt){
-				//If this fails, then we have a bad statement
-				ParseError(line, "Syntactic Error in the statement");
-				return false;
-			}
+	//If we get here stmt was valid. We can now optionally have semicols and more statements
+	l = Parser::GetNextToken(in, line);
 
-			//Refresh l
-			l = Parser::GetNextToken(in, line);
+	//While we see a semicol, we keep processing stmts
+	while(l == SEMICOL){
+		//Process the next stmt
+		status = Stmt(in, line);
+
+		//If the stmt was bad, throw error and return
+		if(!status){
+			ParseError(line, "Bad statement in compount statement.");
+			return false;
 		}
 
+		//If we get here, we know we had a good statement. Get the next token for processing
+		l = Parser::GetNextToken(in, line);
+	}
 
- 	} 
+	//Once we're here, we know we didn't have a SEMICOL
+	//Check for ERR
+	if (l == ERR) {
+		ParseError(line, "Unrecognized Input Pattern");
+		cout << "(" << l.GetToken() << ")" << endl;
+		return false;
+	}
 
-	return false;
+	//We should see END, so if we don't throw an error
+	if (l != END) {
+		ParseError(line, "Missing END in compoound statement.");
+		return false;
+	}
+
+	//If we make it to this point, we had valid expressions and saw END, so return true
+	return true;
 }
 
 
@@ -467,14 +483,56 @@ bool IfStmt(istream& in, int& line){
 	//We should see a valid expression at this point
 	bool status = Expr(in, line);
 
-	//if expression is not valid, return false
+	//if expression is not valid, throw an error
 	if(!status){
-
+		ParseError(line, "Invalid expression in IF statement.");
+		return false;
 	}
+
+	//if we get here, then we had a valid expression. Next token must be THEN
+	l = Parser::GetNextToken(in, line);
+
+	//If its unknown, throw error
+	if (l == ERR ){
+		ParseError(line, "Unrecognized Input Pattern");
+		cout << "(" << l.GetToken() << ")" << endl;
+		return false;
+	}
+
+	//If its not a THEN, we have an error
+	if (l != THEN) {
+		ParseError(line, "Missing THEN in IF statement.");
+		return false;
+	}
+
+	//If we get here, we so far have IF expr THEN, check for a valid stmt
+	status = Stmt(in, line);
+
+	//If stmt is bad, throw error
+	if(!status){
+		ParseError(line, "Invalid statement in IF statement.");
+		return false;
+	}
+
+	//at this point, we can see ELSE optionally, so check for it
+	l = Parser::GetNextToken(in, line);
+
+	//If we don't see ELSE then we're done, push token back and return
+	if (l != ELSE) {
+		Parser::PushBackToken(l);
+		return status;
+	}
+
+	//If we get here, l was consumed and we should see a valid stmt
+	status = Stmt(in, line);
+
+	//If its invalid, throw an error
+	if(!status){
+		ParseError(line, "Invalid statement after ELSE in IF statement");
+		return false;
+	}
+
 	return status;
-
-
-
 }
 
 
@@ -500,7 +558,7 @@ bool AssignStmt(istream& in, int& line){
 			
 			//If there's no expression, thats an error
 			if (!status){
-				ParseError(line, "Missing Expression in Assignment Statement");
+				ParseError(line, "Bad Expression in Assignment Statement");
 				return false;
 			}
 
@@ -545,8 +603,10 @@ bool Var(istream& in, int& line){
 		ParseError(line, "Undeclared Variable");
 		return false;
 	}
-}
 
+	//We should never get here, added to remove compile warnings
+	return false;
+}
 
 
 /*
@@ -653,23 +713,165 @@ bool LogANDExpr(istream& in, int& line){
 		return false;
 	}
 
-	// TODO finish this, same as LogORExpression essentially
+	//Good first expression, check to see if we have an AND token
+	l = Parser::GetNextToken(in, line);
+
+	//So long as we keep seeing AND, keep processing tokens
+	while (l == AND){
+		//Check the next relational expression
+		status = RelExpr(in, line);
+		
+		//If its a bad expression, throw an error and stop
+		if (!status){
+			ParseError(line, "Incorrect relational expression.");
+			return false;
+		}
+
+		//Refresh the value of l
+		l = Parser::GetNextToken(in, line);
+	}
+
+	//If we got here, we know l wasn't AND, check if it is ERR
+	if (l == ERR) {
+		ParseError(line, "Unrecognized input pattern.");
+		cout << "(" << l.GetLexeme() << ")";
+		return false;
+	}
 	
+	//If we get here, l wasn't AND or an ERR, so push it back to the stream
+	Parser::PushBackToken(l);
 
 	return status;
 }
 
+
+// RelExpr ::= SimpleExpr [ ( = | < | > ) SimpleExpr ]
 bool RelExpr(istream& in, int& line){
-	return false;
+	bool status;
+	LexItem l;
+
+	//We should first see a valid SimpleExpr
+	status = SimpleExpr(in, line);
+
+	if (!status) {
+		ParseError(line, "Invalid Relational Expression");
+		return false;
+	}
+
+	//If we get here we can optionally see =, < or > once
+	l = Parser::GetNextToken(in, line);
+
+	//If it is these, check for the validity of the simpleExpr
+	if (l == EQ || l == GTHAN || l == LTHAN) {
+		status = SimpleExpr(in, line);
+		if(!status) {
+			ParseError(line, "Invalid Relational Expression.");
+			return false;
+		}
+
+		//If it is valid, we're done. Simply return status.
+		return status;
+	}
+
+	//If lexeme is unknown, throw error
+	if (l == ERR) {
+		ParseError(line, "Unrecognized input pattern.");
+		cout << "(" << l.GetLexeme() << ")";
+		return false;
+	}
+
+	//If we didn't have =, < or > or ERR, push token back and return status
+	Parser::PushBackToken(l);
+	return status;
 }
 
+
+//SimpleExpr :: Term { ( + | - ) Term }
 bool SimpleExpr(istream& in, int& line){
-	return false;
+	bool status;
+	LexItem l;
+
+	//We should see a valid term first
+	status = Term(in, line);
+
+	//Throw error if invalid
+	if(!status){
+		ParseError(line, "Invalid term in expression");
+		return false;
+	}
+
+	//once we're here, we can see 0 or many + and -
+	l = Parser::GetNextToken(in, line);
+
+	//So long as we have plus or minus, we keep processing
+	while (l == PLUS || l == MINUS) {
+		status = Term(in, line);
+
+		//If we have a bad term, throw error
+		if(!status) {
+			ParseError(line, "Invalid term in expression.");
+		}
+
+		//Refresh l
+		l = Parser::GetNextToken(in, line);
+	}
+
+	//If lexeme is unknown, throw error
+	if (l == ERR) {
+		ParseError(line, "Unrecognized input pattern.");
+		cout << "(" << l.GetLexeme() << ")";
+		return false;
+	}
+
+	//Once we're here, we know l wasn't + or -, so we're done
+	//Push l back and return status
+	Parser::PushBackToken(l);
+	return status;
 }
+
 
 //Term ::= SFactor { ( * | / | DIV | MOD ) SFactor }
 bool Term(istream& in, int& line){
-	return false;
+	bool status;
+	LexItem l;
+
+	//We must first see a valid Sfactor
+	status = SFactor(in, line);
+
+	//If SFactor is bad, no point in continuing
+	if (!status) {
+		ParseError(line, "Bad SFactor in term.");
+		return false;
+	}
+
+	//We can now see one or more *, /, DIV, or MODs followed by sfactors
+	l = Parser::GetNextToken(in, line);
+
+	//If we have any of these, process the next sfactor
+	while (l == MULT || l == DIV || l == IDIV || l == MOD) {
+		status = SFactor(in, line);
+
+		//If SFactor is bad, no point in continuing
+		if (!status) {
+			ParseError(line, "Bad SFactor in term.");
+			return false;
+		}
+
+		//Refresh l
+		l = Parser::GetNextToken(in, line);
+	}
+
+	//If we get here, we've had valid sfactors and l is no longer *. /, MOD or DIV
+	//make sure l isn't an ERR
+	if (l == ERR) {
+		ParseError(line, "Unrecognized input pattern.");
+		cout << "(" << l.GetLexeme() << ")";
+		return false;
+	}
+
+	//If no error, push token back and return status
+	Parser::PushBackToken(l);
+	return status;
 }
 
 
@@ -702,7 +904,6 @@ bool SFactor(istream& in, int& line){
 
 	return false;
 }
-
 
 
 //Factor must be a predeclared identifier or a constant, or an optional expr in parenthesis
