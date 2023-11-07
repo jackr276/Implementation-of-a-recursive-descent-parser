@@ -94,7 +94,15 @@ bool Prog(istream& in, int& line){
 		}
 
 		//Up to here we have gotten PROGRAM IDENT ; DeclPart
-		//Check for the compound statement
+		//Check for the compound statement, make sure that there actually is a BEGIN
+		l = Parser::GetNextToken(in, line);
+		if (l != BEGIN){
+			ParseError(line, "Syntactic Error in Declaration Block.");
+			ParseError(line, "Incorrect Declaration Section");
+			return false;
+		}
+
+		//If we  have BEGIN, consume it and call CompoundStmt
 		status = CompoundStmt(in, line);
 
 		//If the compound statement was bad, return false
@@ -244,7 +252,7 @@ bool DeclStmt(istream& in, int& line){
 	//If we find the optional ASSOP, process it
 	if (l == ASSOP){
 		bool status = Expr(in, line);
-		if (!Expr) {
+		if (!status) {
 			ParseError(line, "Invalid expression following assignment operator.");
 			return false;
 		}
@@ -272,7 +280,7 @@ bool DeclStmt(istream& in, int& line){
 * StructuredStmt ::= IfStmt | CompoundStmt
 */
 bool Stmt(istream& in, int& line) {
-
+	bool status;
 	// Get the next lexItem from the instream and analyze it
 	LexItem l = Parser::GetNextToken(in, line);
 
@@ -295,9 +303,15 @@ bool Stmt(istream& in, int& line) {
 	if (l == IDENT || l == WRITE || l == WRITELN){
 		//Put token back to be reprocessed
 		Parser::PushBackToken(l);
-		return SimpleStmt(in, line);
-	}
+		status = SimpleStmt(in, line);
 
+		if(!status){
+			ParseError(line, "Incorrect Simple Statement.");
+			return false;
+		}
+
+		return status;
+	}
 
 	//We didn't find anything so push the token back
 	Parser::PushBackToken(l);
@@ -311,12 +325,17 @@ bool Stmt(istream& in, int& line) {
 * StructuredStmt ::= IfStmt | CompoundStmt
 */
 bool StructuredStmt(istream& in, int& line){
+	bool status;
 	LexItem strd = Parser::GetNextToken(in, line);
 
 	switch (strd.GetToken()){
 		case IF:
-			return IfStmt(in, line);
-		
+			status = IfStmt(in, line);
+			if (!status) {
+				ParseError(line, "Bad structured statement.");
+				return false;
+			}
+			return true;
 		//Compound statements begin with in
 		case BEGIN:
 			return CompoundStmt(in, line);
@@ -334,44 +353,34 @@ bool StructuredStmt(istream& in, int& line){
 */
 bool CompoundStmt(istream& in, int& line){
 	LexItem l;
+	LexItem lookAhead;
 	//If we got here we already have consumed a BEGIN
 	bool status = Stmt(in, line);
 
-	//If stmt is bad, no point in continuing
-	if (!status){
-		ParseError(line, "Bad statement in compound statement.");
-		return false;
-	}
 
-	//If we get here stmt was valid. We can now optionally have semicols and more statements
-	l = Parser::GetNextToken(in, line);
 
-	//While we see a semicol, we keep processing stmts
-	while(l == SEMICOL){
-		//Process the next stmt
-		status = Stmt(in, line);
-
-		//If the stmt was bad, throw error and return
-		if(!status){
-			ParseError(line, "Bad statement in compount statement.");
+	while(status) {
+		l = Parser::GetNextToken(in, line);
+		if (l != SEMICOL && l != END){
+			ParseError(line, "Missing Semicolon in Compound statement.");
 			return false;
 		}
 
-		//If we get here, we know we had a good statement. Get the next token for processing
-		l = Parser::GetNextToken(in, line);
+		status = Stmt(in, line);
 	}
 
-	//Once we're here, we know we didn't have a SEMICOL
-	//Check for ERR
+
 	if (l == ERR) {
 		ParseError(line, "Unrecognized Input Pattern");
-		cout << "(" << l.GetToken() << ")" << endl;
+		//print out the unrecognized input
+		cout << "(" << l.GetLexeme() << ")" << endl;
 		return false;
 	}
 
-	//We should see END, so if we don't throw an error
+
 	if (l != END) {
-		ParseError(line, "Missing END in compoound statement.");
+		line++;
+		ParseError(line, "Missing END in compound statement.");
 		return false;
 	}
 
@@ -390,6 +399,7 @@ bool SimpleStmt(istream& in, int& line){
 	switch (smpl.GetToken()){
 		//Assignments start with identifiers
 		case IDENT:
+			Parser::PushBackToken(smpl);
 			return AssignStmt(in, line);
 
 		case WRITELN:
@@ -663,7 +673,7 @@ bool Expr(istream& in, int& line){
 
 	//If expression is bad, return error
 	if (!status){
-		ParseError(line, "Incorrect Expression");
+		//ParseError(line, "Incorrect Expression");
 		return false;
 	}
 
@@ -677,7 +687,7 @@ bool Expr(istream& in, int& line){
 
 		//If expression is bad, return error
 		if (!status){
-			ParseError(line, "Incorrect Expression");
+			//ParseError(line, "Incorrect Expression");
 			return false;
 		}
 
@@ -709,7 +719,7 @@ bool LogANDExpr(istream& in, int& line){
 
 	//If we have a bad relational expression, return error
 	if (!status){
-		ParseError(line, "Syntactic error in relational expression.");
+		//ParseError(line, "Syntactic error in relational expression.");
 		return false;
 	}
 
@@ -723,7 +733,7 @@ bool LogANDExpr(istream& in, int& line){
 		
 		//If its a bad expression, throw an error and stop
 		if (!status){
-			ParseError(line, "Incorrect relational expression.");
+			//ParseError(line, "Incorrect relational expression.");
 			return false;
 		}
 
@@ -796,7 +806,7 @@ bool SimpleExpr(istream& in, int& line){
 
 	//Throw error if invalid
 	if(!status){
-		ParseError(line, "Invalid term in expression");
+		//ParseError(line, "Invalid term in expression");
 		return false;
 	}
 
@@ -809,7 +819,8 @@ bool SimpleExpr(istream& in, int& line){
 
 		//If we have a bad term, throw error
 		if(!status) {
-			ParseError(line, "Invalid term in expression.");
+			//ParseError(line, "Invalid term in expression.");
+			return false;
 		}
 
 		//Refresh l
@@ -840,7 +851,7 @@ bool Term(istream& in, int& line){
 
 	//If SFactor is bad, no point in continuing
 	if (!status) {
-		ParseError(line, "Bad SFactor in term.");
+		//ParseError(line, "Bad SFactor in term.");
 		return false;
 	}
 
@@ -853,7 +864,7 @@ bool Term(istream& in, int& line){
 
 		//If SFactor is bad, no point in continuing
 		if (!status) {
-			ParseError(line, "Bad SFactor in term.");
+			ParseError(line, "Missing operand after operator.");
 			return false;
 		}
 
@@ -865,7 +876,7 @@ bool Term(istream& in, int& line){
 	//make sure l isn't an ERR
 	if (l == ERR) {
 		ParseError(line, "Unrecognized input pattern.");
-		cout << "(" << l.GetLexeme() << ")";
+		cout << "(" << l.GetLexeme() << ")" << endl;
 		return false;
 	}
 
@@ -900,9 +911,7 @@ bool SFactor(istream& in, int& line){
 	//If l is not +, - or NOT, push token back and let factor handle it
 	Parser::PushBackToken(l);
 	//0 means we found no plus, minus or NOT
-	Factor(in, line, 0);
-
-	return false;
+	return Factor(in, line, 0);
 }
 
 
@@ -910,6 +919,7 @@ bool SFactor(istream& in, int& line){
 //Sign is 0 if no sign, 1 if positive(+), 2 if negative(-), 3 if NOT
 //Factor ::= IDENT | ICONST | RCONST | SCONST | BCONST | (Expr)
 bool Factor(istream& in, int& line, int sign){
+	bool status;
 	//get and check our first token
 	LexItem l = Parser::GetNextToken(in, line);
 
@@ -969,7 +979,7 @@ bool Factor(istream& in, int& line, int sign){
 	//If we see an lparen, we have an expr
 	if (l == LPAREN){
 		//Evaluate the internal expression
-		bool status = Expr(in, line);
+		status = Expr(in, line);
 
 		if(!status){
 			ParseError(line, "Invalid Expression.");
@@ -984,7 +994,7 @@ bool Factor(istream& in, int& line, int sign){
 		}
 	}
 
-	return false;
+	return status;
 }
 
 

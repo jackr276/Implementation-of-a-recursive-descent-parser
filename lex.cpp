@@ -138,7 +138,7 @@ LexItem getNextToken(istream& in, int& linenumber){
 
                 //identifiers can begin with letters, _ or $, so seeing this would put us in the INID state
                 //Note - keywords also start with characters, so we'll have to check using is_id_or_kw in the INID state
-                } else if (isalpha(ch) || ch == '_' || ch == '$'){
+                } else if (isalpha(ch) || ch == '_'){
                     lexstate = INID;
                     continue;
 
@@ -275,7 +275,7 @@ LexItem getNextToken(istream& in, int& linenumber){
 
             case INID:
                 //ID's are allowed to have letters, numbers, underscores and $'s, so these are all fine 
-                if (isalpha(ch)||isdigit(ch) || ch == '_' || ch == '$'){
+                if (isalpha(ch)||isdigit(ch) || ch == '_'){
                     lexeme += ch;
                 //we've found the end of the id
                 } else {
